@@ -1,6 +1,6 @@
 package policy
 
-import data.kubernetes.admission
+import data.terraform.analysis
 
 main = {
 	"apiVersion": "admission.k8s.io/v1",
@@ -8,15 +8,18 @@ main = {
 	"response": response,
 }
 
+default uid = ""
+uid = input.request.uid
+
 response = {
-	"uid": input.request.uid,
+	"uid": uid,
 	"allowed": false,
 	"status": {"message": reason},
 } {
-	reason = concat(", ", admission.deny)
+	reason = concat(", ", analysis.deny)
 	reason != ""
 } else = {
-	"uid": input.request.uid,
+	"uid": uid,
 	"allowed": true,
 } {
 	true

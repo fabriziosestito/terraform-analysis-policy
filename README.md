@@ -1,74 +1,36 @@
-# opa-policy-template
+# terraform-plan-analysis-policy
 
-This is a template repository that can be used to easily convert an existing
-Rego policy targeting the Open Policy Agent framework into a Kubewarden policy.
+This is a raw policy that can be used to analyze Terraform plans.
+It's a port of this [OPA Terraform policy](https://www.openpolicyagent.org/docs/latest/terraform/#getting-started).
 
-Don't forget to checkout Kubewarden's [official documentation](https://docs.kubewarden.io)
-for more information about writing policies.
+## Usage
 
-## Introduction
+Save the terraform plan to JSON:
 
-**Note well:** the existing Rego code should not need to be rewritten.
-
-These are the only requirements you have to fulfill:
-
-1. The policy evaluation must return a `AdmissionReview` response object. This
-  is already a requirement for all the Open Policy Agent policies that are meant
-  to be used with Kubernetes.
-1. The policy must be compiled into a WebAssembly module using the `opa` cli tool.
-1. The policy must be annotated via `kwctl annotate`.
-
-This template repository contains an example policy that can be used as foundation
-for your policies, plus all the automation needed to implement the 2nd and 3rd points.
-
-## Implementation details
-
-The actual policy is defined inside of the `policy.rego` file. This file defines
-a `deny` object that is later embedded into an `AdmissionReview` response.
-
-The `AdmissionReview` object is defined inside of the `utility/policy.rego` file.
-You probably won't need to change this file.
-
-## Testing
-
-The policy has some unit tests written using Rego, they can be found inside of
-the file `policy_test.rego`. The unit tests can be executed via the following
-command:
-
-```shell
-make test
+```bash
+terraform plan --out tfplan.binary
+terraform show -json tfplan.binary > tfplan.json
 ```
 
-The repository provides also a way to run end-to-end tests against the WebAssembly
-module produced by the compilation. These tests execute the policy using the
-WebAssembly runtime of Kubewarden.
+The policy accepts a request in this format:
 
-The e2e tests are implemented using [bats](https://github.com/bats-core/bats-core):
-the Bash Automated Testing System. The WebAssembly runtime is provided by the
-[kwctl](https://github.com/kubewarden/kwctl) cli tool.
-
-The end-to-end tests are defined inside of the `e2e.bats` file and can
-be run via this command:
-
-```shell
-make e2e-tests
+```json
+{
+    "request": <your terraform plan in JSON format>
+    "settings": {
+        "threshold": 30
+    }
+}
 ```
 
-## Automation
+## Score
 
-This project contains [GitHub Actions](https://docs.github.com/en/actions)
-workflows.
+The policy computes a score for a Terraform that combines
 
-They take care of the following automations:
+- The number of deletions of each resource type
+- The number of creations of each resource type
+- The number of modifications of each resource type
 
-  * Execute the Rego test suite
-  * Build the Rego files into a single WebAssembly module
-  * Annotate the WebAssembly module with Kubewarden's metadata
-  * Execute end-to-end tests
-  * Push events on the `main` branch lead the:
-    * Push the annotated WebAssembly module to the GitHub Container Registry using the
-      `:latest` tag.
-  * The creation of git tags lead to:
-    * Creation of the GitHub Release, holding the annotated WebAssembly module
-    * Push the annotated WebAssembly module to the GitHub Container Registry using the
-      `:<git tag>` tag.
+The policy authorizes the plan when the score for the plan is below a threshold and there are no changes made to any IAM resources.
+
+The threshold is configurable via the `threshold` setting.
